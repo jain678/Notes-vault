@@ -24,7 +24,8 @@ structured document, private to your account. See [`docs/PLAN.md`](docs/PLAN.md)
 ## Setup with your Supabase project
 
 1. **Create the schema.** Open Supabase → SQL Editor, paste the contents of
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and run it.
+   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) and run it, then do the same with
+   [`supabase/migrations/0002_grants.sql`](supabase/migrations/0002_grants.sql).
    (Or with the CLI: `npx supabase link --project-ref <ref>` then `npx supabase db push`.)
 2. **Auth URLs.** Supabase → Authentication → URL Configuration:
    - Site URL: your production URL (or `http://localhost:3000` while developing)
