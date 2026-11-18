@@ -1,6 +1,6 @@
 # Notes Vault — Implementation Plan
 
-> Status: **Approved — in progress.** Decisions are recorded in section 10.
+> Status: **v1 implemented.** Decisions are recorded in section 10. Setup steps are in the README.
 
 ## 1. Goal
 
@@ -122,8 +122,9 @@ All SQL lives in `supabase/migrations/` so it's versioned and reproducible.
 ## 5. Login flow
 
 1. `/login` — email + password (sign in / sign up tabs). Sign-up is open to anyone.
+   (Next.js 16 renamed `middleware.ts` to `proxy.ts`; the session refresh lives there.)
 2. Sign-up sends a confirmation email (Supabase default); confirmed users land on `/notes`.
-3. Sessions are stored in secure cookies via `@supabase/ssr`; Next.js middleware
+3. Sessions are stored in secure cookies via `@supabase/ssr`; the Next.js proxy
    refreshes the session and redirects logged-out users from `/notes/*` to `/login`.
 4. "Forgot password" → Supabase reset email → `/reset-password`.
 5. Log out from the user menu.
@@ -151,9 +152,9 @@ app/
   notes/[id]/page.tsx
 components/editor/                    # Tiptap setup, extensions (mermaid, file, image upload)
 components/notes/                     # list, search, tags
-lib/supabase/{client,server,middleware}.ts
+lib/supabase/{client,server,proxy}.ts
 lib/notes.ts                          # data access
-middleware.ts
+proxy.ts
 supabase/migrations/0001_init.sql
 .env.example                          # NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
@@ -162,7 +163,7 @@ supabase/migrations/0001_init.sql
 
 1. **Scaffold** — Next.js + Tailwind + shadcn, Supabase clients, `.env.example`, lint/format.
 2. **Database** — migration with tables, RLS, storage bucket + policies.
-3. **Auth** — login/sign-up/magic link/reset, middleware protection.
+3. **Auth** — login/sign-up/reset, route protection in the proxy.
 4. **Notes CRUD** — list, create, open, autosave, delete.
 5. **Rich editor** — paste handling, code blocks, tables, images (upload to Storage), attachments, Mermaid.
 6. **Search, tags, pin**, export to Markdown.
