@@ -1,7 +1,6 @@
 # Notes Vault — Implementation Plan
 
-> Status: **Draft for review**. Nothing is built yet. Please comment on the
-> "Open questions" section at the bottom; everything else is my proposed default.
+> Status: **Approved — in progress.** Decisions are recorded in section 10.
 
 ## 1. Goal
 
@@ -38,10 +37,10 @@ across devices and sessions.
 | Editor | **Tiptap** (ProseMirror) | Block-style editor with great paste handling (HTML → structured blocks), code blocks, images, tables, task lists, extensible for Mermaid. |
 | Code highlighting | lowlight (highlight.js) via Tiptap | Auto language detection for pasted code. |
 | Diagrams | **Mermaid** custom Tiptap node | Write/paste `mermaid` code → live diagram. |
-| Auth | **Supabase Auth** | Email+password and/or magic link; optional Google/GitHub OAuth. |
+| Auth | **Supabase Auth** | Email + password. |
 | Database | **Supabase Postgres** with **Row Level Security** | Isolation enforced in the database, not just the UI. |
 | File storage | **Supabase Storage** (private bucket) | Images/attachments, served via short-lived signed URLs. |
-| Hosting | **Vercel** (proposed) | Free tier, auto-deploy from GitHub. |
+| Hosting | TBD (Vercel likely) | Decided later. |
 
 ## 3. How content is stored ("well-structured")
 
@@ -122,7 +121,7 @@ All SQL lives in `supabase/migrations/` so it's versioned and reproducible.
 
 ## 5. Login flow
 
-1. `/login` — email + password (sign in / sign up tabs) and a "Email me a magic link" option. Optional Google button.
+1. `/login` — email + password (sign in / sign up tabs). Sign-up is open to anyone.
 2. Sign-up sends a confirmation email (Supabase default); confirmed users land on `/notes`.
 3. Sessions are stored in secure cookies via `@supabase/ssr`; Next.js middleware
    refreshes the session and redirects logged-out users from `/notes/*` to `/login`.
@@ -146,7 +145,7 @@ All SQL lives in `supabase/migrations/` so it's versioned and reproducible.
 ```
 app/
   (auth)/login/page.tsx
-  (auth)/auth/callback/route.ts      # magic-link / OAuth / email confirm
+  (auth)/auth/callback/route.ts      # email confirmation / password reset
   notes/layout.tsx                    # sidebar
   notes/page.tsx
   notes/[id]/page.tsx
@@ -169,7 +168,7 @@ supabase/migrations/0001_init.sql
 6. **Search, tags, pin**, export to Markdown.
 7. **Polish** — responsive, dark mode, empty states, error toasts.
 8. **Verify** — automated test that user A cannot read/write user B's notes or files (RLS test), Playwright smoke test of login → paste → reload → content persists.
-9. **Deploy** — Vercel + Supabase auth redirect URLs.
+9. **Deploy** — hosting decided later; add its URL to Supabase auth redirect URLs.
 
 ## 9. What I need from you
 
@@ -185,15 +184,16 @@ supabase/migrations/0001_init.sql
 
 **In the Supabase dashboard (I'll give exact steps when we get there)**
 - Auth → URL configuration: add `http://localhost:3000` and the production URL as redirect URLs.
-- (Optional) Enable Google OAuth provider if you want "Sign in with Google".
 
-## 10. Open questions for you
+## 10. Decisions
 
-1. **Login methods**: email+password, magic link, Google — which ones? (Default: email+password + magic link.)
-2. **Sign-ups**: open to anyone, or just you / invite-only? (Default: open, email confirmation required.)
-3. **Editor feel**: rich WYSIWYG block editor (Notion-like, default) **or** Markdown-source editor with preview?
-4. **Hosting**: Vercel OK? Do you have a custom domain?
-5. **Diagrams**: is Mermaid (text → diagram) + images enough, or do you also want hand-drawn whiteboard diagrams (Excalidraw embed)? That's a bigger add.
-6. **File limits**: 25 MB per file OK? (Supabase free tier = 1 GB storage total.)
-7. **Organisation**: tags only, or do you want folders/notebooks in v1?
-8. Anything from "Out of scope" you actually want in v1 (e.g. share a note via public link, AI auto-formatting of pasted dumps)?
+| Question | Decision |
+|---|---|
+| Login methods | Email + password only |
+| Sign-ups | Open to anyone (email confirmation per Supabase settings) |
+| Editor | Notion-style rich block editor (Tiptap) |
+| Hosting | Decide later |
+| Diagrams | Mermaid + images; no hand-drawn whiteboard |
+| File limit | 25 MB per file |
+| Organisation | Tags (no folders) |
+| Out-of-scope items | Stay out of scope for v1 |
