@@ -41,7 +41,11 @@ async function paste(page, selector, items) {
   );
 }
 
-const browser = await chromium.launch();
+// Honour an HTTPS proxy if the environment requires one (local app bypasses it).
+const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy;
+const browser = await chromium.launch(
+  proxyUrl ? { proxy: { server: proxyUrl, bypass: "localhost,127.0.0.1" } } : {},
+);
 let page;
 try {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -142,6 +146,12 @@ try {
   await page2.goto(noteUrl);
   await page2.getByText("Note not found").waitFor();
   assert.equal(await page2.locator("nav a").count(), 0);
+
+  // Clean up: delete the note (and its uploaded files) through the UI.
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page.waitForURL(/\/notes$/);
+  assert.equal(await page.locator("nav a", { hasText: "My first dump" }).count(), 0);
 
   // 10. Log out → redirected to login; private pages are blocked.
   await page.getByRole("button", { name: "Log out" }).click();

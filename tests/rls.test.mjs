@@ -94,4 +94,8 @@ test("users cannot see or change each other's notes and files", async () => {
   // Files over 25 MB are rejected by the bucket.
   const big = await a.sb.storage.from(BUCKET).upload(`${a.id}/${note.id}/big.bin`, new Blob([new Uint8Array(26 * 1024 * 1024)]));
   assert.ok(big.error, "files over 25 MB must be rejected");
+
+  // Clean up A's data (test accounts themselves remain: deleting users needs admin rights).
+  await a.sb.storage.from(BUCKET).remove([path]);
+  await a.sb.from("notes").delete().eq("id", note.id);
 });
