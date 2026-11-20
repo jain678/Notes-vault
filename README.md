@@ -15,6 +15,9 @@ structured document, private to your account. See [`docs/PLAN.md`](docs/PLAN.md)
   text, headings, lists and checklists, tables (Markdown or tab-separated from spreadsheets), code with its language,
   Mermaid diagrams, logs and stack traces, links, images and files. Each block shows why it was detected and can be
   re-typed before saving. The original paste can be kept with the note.
+- **Import documents.** *Import a file* (or drop it on the home or New note screen): PDF, Word (.docx), Markdown,
+  text, HTML, CSV/TSV, JSON and code files are turned into structured notes; headings, lists, tables, code and
+  embedded Word images are kept, and the original file is attached. Scanned PDFs without text are attached only.
 - **Reading view.** Serif reading typography, dark code panels with Copy, numbered figures for images and diagrams
   (with "View source"), log panels, link cards, tip callouts, and an "On this page" outline from the headings.
 - **Editing.** Edit switches the same page into a rich editor with smart paste (rich HTML, Markdown, code, screenshots).
