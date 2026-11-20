@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, ui } from "@/components/ui";
+import { useDismiss } from "@/components/useDismiss";
 import { createClient } from "@/lib/supabase/client";
 import {
   createCollection,
@@ -32,6 +33,7 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const menuRef = useDismiss(menuFor !== null, () => setMenuFor(null));
   // Selecting notes to make a book. Insertion order = chapter order.
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -118,6 +120,9 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
     return m;
   }, [notes, collections]);
   const unsorted = byCollection.get(null) ?? [];
+  // While reading a note in a collection, "New note" starts in that collection.
+  const activeCollection = notes.find((n) => n.id === activeId)?.collection_id;
+  const newNoteHref = activeCollection && collections.some((c) => c.id === activeCollection) ? `/notes/new?collection=${activeCollection}` : "/notes/new";
 
   async function newCollection() {
     const name = window.prompt("Name the new collection");
@@ -208,7 +213,7 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
 
       <div className="flex flex-col gap-3">
         <Link
-          href="/notes/new"
+          href={newNoteHref}
           onClick={onNavigate}
           aria-current={pathname === "/notes/new" ? "page" : undefined}
           className={`${ui.btnPrimary} w-full`}
@@ -309,7 +314,7 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
                 const open = !collapsed.has(c.id) || list.some((n) => n.id === activeId);
                 return (
                   <li key={c.id} className="flex flex-col gap-0.5">
-                    <div className="group relative flex items-center">
+                    <div ref={menuFor === c.id ? menuRef : undefined} className="group relative flex items-center">
                       {selecting && list.length > 0 && (
                         <input
                           type="checkbox"
@@ -342,7 +347,18 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
                         <Icon.More size={16} />
                       </button>
                       {menuFor === c.id && (
-                        <div className="absolute right-0 top-11 z-20 flex w-40 flex-col rounded-[10px] border border-line bg-white p-1 shadow-lg">
+                        <div className="absolute right-0 top-11 z-20 flex w-56 flex-col rounded-[10px] border border-line bg-white p-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMenuFor(null);
+                              onNavigate?.();
+                              router.push(`/notes/new?collection=${c.id}`);
+                            }}
+                            className="min-h-10 rounded-md px-3 text-left text-sm font-medium hover:bg-side"
+                          >
+                            New note in this collection
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -364,7 +380,15 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
                       )}
                     </div>
                     {open && list.length > 0 && <ul className="flex flex-col gap-0.5">{list.map((n) => noteLink(n, true))}</ul>}
-                    {open && list.length === 0 && <p className="py-1 pl-9 text-[13px] text-muted">No notes yet</p>}
+                    {open && list.length === 0 && (
+                      <Link
+                        href={`/notes/new?collection=${c.id}`}
+                        onClick={onNavigate}
+                        className="flex min-h-11 items-center gap-2 rounded-lg pl-9 text-[13px] text-accent hover:bg-[#e9e5dc]"
+                      >
+                        <Icon.Plus size={14} /> Add the first note
+                      </Link>
+                    )}
                   </li>
                 );
               })}

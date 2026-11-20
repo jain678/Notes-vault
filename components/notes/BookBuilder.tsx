@@ -58,8 +58,10 @@ export function BookBuilder() {
         setAllNotes(all);
         const fromCollection = c.find((x) => x.id === collectionId);
         const shared = n.length && n.every((x) => x.collection_id && x.collection_id === n[0].collection_id) ? c.find((x) => x.id === n[0].collection_id) : undefined;
-        setTitle((fromCollection ?? shared)?.name ?? (n.length === 1 ? displayTitle({ title: n[0].title, preview: n[0].content_text }) : "My notes"));
-        setSubtitle(`Compiled ${fmtDate(new Date().toISOString())}`);
+        // Defaults only fill fields the user hasn't typed in yet.
+        const defaultTitle = (fromCollection ?? shared)?.name ?? (n.length === 1 ? displayTitle({ title: n[0].title, preview: n[0].content_text }) : "My notes");
+        setTitle((prev) => prev || defaultTitle);
+        setSubtitle((prev) => prev || `Compiled ${fmtDate(new Date().toISOString())}`);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load notes"))
       .finally(() => setLoading(false));

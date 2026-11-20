@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditingContext } from "@/components/editor/editing";
 import { buildExtensions } from "@/components/editor/extensions";
 import { Icon, ui } from "@/components/ui";
+import { useDismiss } from "@/components/useDismiss";
 import {
   createCollection,
   deleteNote,
@@ -45,6 +46,8 @@ export function NoteView({ note }: { note: Note }) {
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const moreRef = useDismiss(menuOpen, () => setMenuOpen(false));
+  const exportRef = useDismiss(exportOpen, () => setExportOpen(false));
   const [exporting, setExporting] = useState(false);
   const docWrap = useRef<HTMLDivElement>(null);
   const [showOriginal, setShowOriginal] = useState(false);
@@ -338,7 +341,7 @@ export function NoteView({ note }: { note: Note }) {
               <Icon.Pencil size={16} /> Edit
             </button>
           )}
-          <div className="relative hidden sm:block">
+          <div ref={exportRef} className="relative hidden sm:block">
             <button
               type="button"
               onClick={() => setExportOpen((v) => !v)}
@@ -360,7 +363,7 @@ export function NoteView({ note }: { note: Note }) {
               </div>
             )}
           </div>
-          <div className="relative">
+          <div ref={moreRef} className="relative">
             <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-label="More actions" aria-expanded={menuOpen} className={`${ui.btn} w-11 px-0`}>
               <Icon.More />
             </button>
@@ -404,7 +407,7 @@ export function NoteView({ note }: { note: Note }) {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-wrap items-start gap-12 px-5 pb-24 pt-10 md:px-12">
+      <div className="mx-auto flex w-full max-w-[1040px] flex-1 flex-wrap items-start justify-center gap-12 px-5 pb-24 pt-10 md:px-12">
         <article className="flex min-w-0 max-w-[720px] flex-[1_1_520px] flex-col gap-5">
           {error && (
             <div role="alert" className="flex items-start justify-between gap-3 rounded-xl bg-log px-4 py-3 text-sm text-log-ink">

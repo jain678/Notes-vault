@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { payloadFromDataTransfer, type ClipboardPayload } from "@/components/editor/clipboard";
 import { detectLanguage } from "@/components/editor/lowlight";
@@ -36,9 +36,11 @@ type Override = { kind?: BlockKind; lang?: string };
 
 export function NewNote() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [noteId] = useState(() => crypto.randomUUID());
   const [title, setTitle] = useState("");
-  const [collectionId, setCollectionId] = useState<string>("");
+  // Opened from a collection ("New note in this collection") → file it there.
+  const [collectionId, setCollectionId] = useState<string>(() => searchParams.get("collection") ?? "");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [tagsText, setTagsText] = useState("");
   const [raw, setRaw] = useState("");
