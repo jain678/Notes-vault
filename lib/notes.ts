@@ -228,3 +228,24 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
+
+// ---- books -------------------------------------------------------------------
+/** Notes by id, returned in the order given (missing or foreign ids are skipped by RLS). */
+export async function getNotes(ids: string[]): Promise<Note[]> {
+  if (!ids.length) return [];
+  const { data, error } = await createClient().from("notes").select(NOTE_COLUMNS).in("id", ids);
+  if (error) throw error;
+  const byId = new Map((data as Note[]).map((n) => [n.id, n]));
+  return ids.map((id) => byId.get(id)).filter((n): n is Note => Boolean(n));
+}
+
+/** A collection's notes, oldest first (reads like a book). */
+export async function getCollectionNotes(collectionId: string): Promise<Note[]> {
+  const { data, error } = await createClient()
+    .from("notes")
+    .select(NOTE_COLUMNS)
+    .eq("collection_id", collectionId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data as Note[];
+}

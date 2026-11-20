@@ -32,7 +32,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   if (language === "mermaid") {
     const sourceVisible = editing || showSource;
     return (
-      <NodeViewWrapper as="figure" className="vault-figure not-prose m-0 flex flex-col gap-2.5 font-sans">
+      <NodeViewWrapper as="figure" data-mermaid="" className="vault-figure not-prose m-0 flex flex-col gap-2.5 font-sans">
         <div className={sourceVisible ? "overflow-hidden rounded-xl bg-code" : "hidden"}>
           <Header language={language} editing={editing} onLang={(l) => updateAttributes({ language: l })} code={code} />
           <pre className="hljs m-0 overflow-x-auto px-5 py-4 font-mono text-sm leading-[1.65]">
@@ -45,7 +45,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         <figcaption contentEditable={false} className="text-sm leading-normal text-muted">
           <span className="fig-num" /> Diagram, drawn from Mermaid.{" "}
           {!editing && (
-            <button type="button" onClick={() => setShowSource((v) => !v)} className="text-accent underline underline-offset-2 hover:text-accent-hover">
+            <button type="button" data-print-hide onClick={() => setShowSource((v) => !v)} className="text-accent underline underline-offset-2 hover:text-accent-hover">
               {showSource ? "Hide source" : "View source"}
             </button>
           )}
@@ -145,10 +145,11 @@ export function MermaidPreview({ code }: { code: string }) {
     };
   }, [code, id]);
 
-  if (!code.trim()) return <p className="m-0 text-sm text-muted">Write Mermaid code to draw a diagram.</p>;
-  if (error) return <p className="m-0 text-sm text-log-ink">Diagram error: {error}</p>;
+  if (!code.trim()) return <p data-mermaid-ready="" className="m-0 text-sm text-muted">Write Mermaid code to draw a diagram.</p>;
+  if (error) return <p data-mermaid-ready="" className="m-0 text-sm text-log-ink">Diagram error: {error}</p>;
   return (
     <div
+      {...(svg ? { "data-mermaid-ready": "" } : {})}
       className="mermaid-diagram text-center [&_svg]:mx-auto [&_svg]:inline-block [&_svg]:h-auto [&_svg]:max-w-full"
       dangerouslySetInnerHTML={{ __html: svg }}
     />

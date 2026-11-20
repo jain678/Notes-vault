@@ -214,3 +214,11 @@ Built from the "Notes Vault" design canvas (reading view + New note screen).
 - Schema: `0003_collections.sql` adds `collections` (RLS, owner only), `notes.collection_id` (own collections
   only), `notes.raw_paste`, and a stored `notes.preview` for fast lists.
 - Not included: AI rewriting of pasted text (the design's cleaned-up sentence); dark mode (the design is light only).
+
+## 12. PDF export and books
+
+- Single note: Export → PDF. Book: select notes (or a collection) → Make a book → reorder → Download PDF.
+- `lib/print.ts` waits for images and diagrams, snapshots the rendered content, and lays it out with Paged.js
+  in a hidden iframe (A4, page numbers, running book/chapter headers, TOC with real page numbers via
+  `target-counter`), then opens the browser print dialog ("Save as PDF"). No server rendering needed.
+- Next step after this: automatic capture of diagrams when copying from web pages (see conversation, item 1).
