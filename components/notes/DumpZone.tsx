@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { payloadFromDataTransfer } from "@/components/editor/clipboard";
 import { Icon, ui } from "@/components/ui";
 import { pendingPaste } from "./events";
@@ -11,6 +11,7 @@ import { pendingPaste } from "./events";
 export function DumpZone() {
   const router = useRouter();
   const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const inField = (t: EventTarget | null) =>
@@ -59,9 +60,28 @@ export function DumpZone() {
           Press <kbd className="rounded border border-line-strong bg-white px-1.5 py-0.5 font-mono text-xs">Ctrl/⌘ V</kbd> anywhere
           here, or drop files.
         </p>
-        <Link href="/notes/new" className={`${ui.btnPrimary} mt-2`}>
-          <Icon.Plus /> New note
-        </Link>
+        <div className="mt-2 flex flex-wrap justify-center gap-2">
+          <Link href="/notes/new" className={ui.btnPrimary}>
+            <Icon.Plus /> New note
+          </Link>
+          <button type="button" onClick={() => fileInput.current?.click()} className={ui.btn}>
+            <Icon.File size={16} /> Import a file
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            aria-label="Import a file"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (!files.length) return;
+              pendingPaste.set({ html: "", text: "", vscodeLanguage: null, files });
+              router.push("/notes/new");
+            }}
+          />
+        </div>
+        <p className="m-0 text-[13px] text-muted">PDF, Word (.docx), Markdown, text, HTML, CSV, JSON and code files become notes.</p>
       </div>
     </div>
   );

@@ -195,6 +195,32 @@ try {
   await page.goto(noteUrl);
   await page.getByRole("heading", { level: 1, name: "Infra meeting: search indexing" }).waitFor();
 
+  // 8d. Import documents: PDF and Word become structured notes, originals attached.
+  const fixtures = new URL("./fixtures/", import.meta.url).pathname;
+  await page.goto(`${BASE}/notes/new`);
+  await page.locator('input[type=file][aria-label="Import a file"]').setInputFiles(`${fixtures}review.docx`);
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="block-badge"]').length >= 8, null, { timeout: 30000 });
+  assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), "Quarterly search review");
+  const docxBadges = await page.getByTestId("block-badge").allInnerTexts();
+  for (const kind of ["Heading", "List", "Image", "Table", "File"]) assert.ok(docxBadges.includes(kind), `docx import has ${kind}`);
+  await page.locator('[data-block-kind="image"] img').waitFor({ timeout: 15000 });
+  await page.waitForFunction(() => !document.querySelector('[data-block-kind="file"]')?.textContent?.includes("Uploading"), null, { timeout: 15000 });
+  await page.getByRole("button", { name: "Save to vault" }).click();
+  await page.waitForURL(/\/notes\/[0-9a-f-]{36}$/);
+  await doc.locator("table th", { hasText: "Engine" }).waitFor();
+  await doc.getByText("review.docx").waitFor();
+
+  await page.goto(`${BASE}/notes/new`);
+  await page.locator('input[type=file][aria-label="Import a file"]').setInputFiles(`${fixtures}report.pdf`);
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="block-badge"]').length >= 8, null, { timeout: 30000 });
+  assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), "Search indexing report");
+  const pdfText = await page.getByLabel("Paste anything").inputValue();
+  assert.match(pdfText, /^- Meilisearch$/m, "PDF bullets recovered");
+  assert.match(pdfText, /readable paragraph again/, "hyphenated line break rejoined");
+  assert.ok((await page.getByTestId("block-badge").allInnerTexts()).includes("Code · Python"));
+  await page.goto(noteUrl);
+  await page.getByRole("heading", { level: 1, name: "Infra meeting: search indexing" }).waitFor();
+
   // 9. A different user cannot open it.
   const ctx2 = await browser.newContext();
   const page2 = await ctx2.newPage();

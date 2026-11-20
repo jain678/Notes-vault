@@ -222,3 +222,13 @@ Built from the "Notes Vault" design canvas (reading view + New note screen).
   in a hidden iframe (A4, page numbers, running book/chapter headers, TOC with real page numbers via
   `target-counter`), then opens the browser print dialog ("Save as PDF"). No server rendering needed.
 - Next step after this: automatic capture of diagrams when copying from web pages (see conversation, item 1).
+
+## 13. Document import
+
+- `lib/importers.ts` turns files into paste-box text, so imports reuse the structuring pipeline and preview.
+- PDF: PDF.js (served from /vendor) text layer → lines → paragraphs (wrapped lines and hyphenation joined),
+  headings by font size, bullets by glyph or indentation, monospace runs → code; repeated headers/footers and
+  page numbers dropped; title from PDF metadata. Scans without a text layer are attached only (no OCR yet).
+- Word (.docx): Mammoth → HTML (Title style → heading, first table row → header, images uploaded) → Markdown.
+- HTML, Markdown/text, CSV/TSV (→ table), JSON and code files (→ highlighted code).
+- Not supported: legacy .doc, .pptx, .xlsx, scanned PDFs (OCR). Those are attached as files.

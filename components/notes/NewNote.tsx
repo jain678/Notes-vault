@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { payloadFromDataTransfer, type ClipboardPayload } from "@/components/editor/clipboard";
 import { detectLanguage } from "@/components/editor/lowlight";
 import { Icon, ui } from "@/components/ui";
+import { canImport, importDocument } from "@/lib/importers";
 import {
+  MAX_FILE_BYTES,
   createCollection,
   createNote,
   listCollections,
@@ -49,6 +51,17 @@ export function NewNote() {
   const [files, setFiles] = useState<Map<string, UploadedFile>>(new Map());
   const [uploading, setUploading] = useState<Set<string>>(new Set());
   const [keepOriginal, setKeepOriginal] = useState(true);
+  const [keepFile, setKeepFile] = useState(true);
+  const keepFileRef = useRef(keepFile);
+  useEffect(() => {
+    keepFileRef.current = keepFile;
+  }, [keepFile]);
+  const [importing, setImporting] = useState<string | null>(null);
+  const titleRef = useRef(title);
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+  const importInput = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -102,35 +115,66 @@ export function NewNote() {
     });
   }, []);
 
-  const addFiles = useCallback(
-    (list: File[]) => {
-      const tokens: string[] = [];
-      for (const file of list) {
-        const key = crypto.randomUUID().slice(0, 8);
-        const kind = file.type.startsWith("image/") ? "image" : "file";
-        tokens.push(fileToken(kind, key, file.name || kind));
-        setUploading((s) => new Set(s).add(key));
-        uploadToStorage(noteId, file)
-          .then((stored) => setFiles((m) => new Map(m).set(key, stored)))
-          .catch((e) => setError(e instanceof Error ? e.message : `Upload failed: ${file.name}`))
-          .finally(() =>
-            setUploading((s) => {
-              const n = new Set(s);
-              n.delete(key);
-              return n;
-            }),
-          );
-      }
-      insertText(tokens.join("\n\n"));
+  /** Starts uploading a file and returns the token that stands for it in the text. */
+  const queueUpload = useCallback(
+    (file: File, as?: "image" | "file") => {
+      const key = crypto.randomUUID().slice(0, 8);
+      const kind = as ?? (file.type.startsWith("image/") ? "image" : "file");
+      setUploading((s) => new Set(s).add(key));
+      uploadToStorage(noteId, file)
+        .then((stored) => setFiles((m) => new Map(m).set(key, stored)))
+        .catch((e) => setError(e instanceof Error ? e.message : `Upload failed: ${file.name}`))
+        .finally(() =>
+          setUploading((s) => {
+            const n = new Set(s);
+            n.delete(key);
+            return n;
+          }),
+        );
+      return fileToken(kind, key, file.name || kind);
     },
-    [insertText, noteId],
+    [noteId],
+  );
+
+  const addFiles = useCallback((list: File[]) => insertText(list.map((f) => queueUpload(f)).join("\n\n")), [insertText, queueUpload]);
+
+  /** Documents (PDF, Word, Markdown, CSV, code…) become note content; anything else is attached. */
+  const importFiles = useCallback(
+    async (list: File[]) => {
+      for (const file of list) {
+        if (file.type.startsWith("image/") || !canImport(file)) {
+          addFiles([file]);
+          continue;
+        }
+        setImporting(file.name);
+        try {
+          const res = await importDocument(file, (img) => queueUpload(img, "image"));
+          // The document's title becomes the note title, so drop it from the body.
+          let body = res.text;
+          const firstLine = body.split("\n").find((l) => l.trim()) ?? "";
+          const useTitle = !titleRef.current.trim();
+          if (useTitle && firstLine.replace(/^#{1,6}\s+/, "").trim() === res.title.trim()) body = body.slice(body.indexOf(firstLine) + firstLine.length);
+          const parts = [body.trim()];
+          if (keepFileRef.current && file.size <= MAX_FILE_BYTES) parts.push(queueUpload(file, "file"));
+          insertText(parts.filter((x) => x.trim()).join("\n\n"));
+          if (useTitle) setTitle(res.title);
+          if (res.note) setError(res.note);
+        } catch (e) {
+          setError(`Couldn't read “${file.name}”: ${e instanceof Error ? e.message : "unknown error"}. It was attached instead.`);
+          addFiles([file]);
+        } finally {
+          setImporting(null);
+        }
+      }
+    },
+    [addFiles, insertText, queueUpload],
   );
 
   /** Returns true if it handled the paste itself. */
   const handlePayload = useCallback(
     (p: ClipboardPayload): boolean => {
       if (p.files.length) {
-        addFiles(p.files);
+        void importFiles(p.files);
         return true;
       }
       if (p.vscodeLanguage && p.text) {
@@ -151,7 +195,7 @@ export function NewNote() {
       }
       return false;
     },
-    [addFiles, insertText],
+    [importFiles, insertText],
   );
 
   // Content pasted on the home screen.
@@ -302,10 +346,33 @@ export function NewNote() {
 
         <div className="flex flex-wrap items-start gap-6">
           <section className="flex min-w-0 flex-[1_1_420px] flex-col gap-2">
-            <label htmlFor="nn-raw" className="font-semibold">
-              Paste anything
-            </label>
-            <div className="text-[13px] text-muted">No formatting needed. Plain text, code, logs, links, tables and screenshots all work, in any mix.</div>
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="nn-raw" className="font-semibold">
+                  Paste anything
+                </label>
+                <div className="text-[13px] text-muted">No formatting needed. Text, code, logs, links, tables, screenshots, or a whole document.</div>
+              </div>
+              <button type="button" onClick={() => importInput.current?.click()} disabled={Boolean(importing)} className={ui.btn}>
+                <Icon.File size={16} /> {importing ? "Reading…" : "Import a file"}
+              </button>
+              <input
+                ref={importInput}
+                type="file"
+                multiple
+                hidden
+                aria-label="Import a file"
+                onChange={(e) => {
+                  void importFiles(Array.from(e.target.files ?? []));
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            {importing && (
+              <div role="status" className="flex items-center gap-2 rounded-[10px] bg-accent-soft px-3 py-2 text-[13px] text-accent-ink">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" aria-hidden="true" /> Reading {importing}…
+              </div>
+            )}
             <textarea
               id="nn-raw"
               ref={textarea}
@@ -318,7 +385,7 @@ export function NewNote() {
                 const dropped = Array.from(e.dataTransfer.files);
                 if (dropped.length) {
                   e.preventDefault();
-                  addFiles(dropped);
+                  void importFiles(dropped);
                 }
               }}
               spellCheck={false}
@@ -368,6 +435,10 @@ export function NewNote() {
               <div className="flex min-h-11 items-center gap-2">
                 <input id="nn-keep" type="checkbox" checked={keepOriginal} onChange={(e) => setKeepOriginal(e.target.checked)} className="h-5 w-5 accent-accent" />
                 <label htmlFor="nn-keep">Keep the original paste with the note</label>
+              </div>
+              <div className="flex min-h-11 items-center gap-2">
+                <input id="nn-keep-file" type="checkbox" checked={keepFile} onChange={(e) => setKeepFile(e.target.checked)} className="h-5 w-5 accent-accent" />
+                <label htmlFor="nn-keep-file">Attach imported files (PDF, Word…) to the note</label>
               </div>
             </div>
           </section>
