@@ -95,6 +95,20 @@ test("users cannot see or change each other's notes and files", async () => {
   const big = await a.sb.storage.from(BUCKET).upload(`${a.id}/${note.id}/big.bin`, new Blob([new Uint8Array(26 * 1024 * 1024)]));
   assert.ok(big.error, "files over 25 MB must be rejected");
 
+  // Collections are private, and notes can only be filed in your own collection.
+  const { data: coll, error: collErr } = await a.sb.from("collections").insert({ name: "A private" }).select().single();
+  assert.ifError(collErr);
+  assert.deepEqual((await b.sb.from("collections").select("id")).data, []);
+  const renamed = await b.sb.from("collections").update({ name: "hacked" }).eq("id", coll.id).select();
+  assert.deepEqual(renamed.data, []);
+  const intoForeign = await b.sb.from("notes").insert({ title: "sneaky", collection_id: coll.id });
+  assert.ok(intoForeign.error, "filing a note in another user's collection must fail");
+  const { error: fileErr } = await a.sb.from("notes").update({ collection_id: coll.id }).eq("id", note.id);
+  assert.ifError(fileErr);
+  await a.sb.from("collections").delete().eq("id", coll.id);
+  const unfiled = await a.sb.from("notes").select("collection_id").eq("id", note.id).single();
+  assert.equal(unfiled.data.collection_id, null, "deleting a collection keeps its notes, unfiled");
+
   // Clean up A's data (test accounts themselves remain: deleting users needs admin rights).
   await a.sb.storage.from(BUCKET).remove([path]);
   await a.sb.from("notes").delete().eq("id", note.id);

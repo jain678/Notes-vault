@@ -1,99 +1,139 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Icon, ui } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
-import { createNote, listNotes, listTags, type NoteSummary } from "@/lib/notes";
-import { onNoteEvent } from "./events";
-
-export function displayTitle(n: { title: string; preview: string }) {
-  return n.title.trim() || n.preview.split("\n").find((l) => l.trim())?.slice(0, 80) || "Untitled";
-}
-
-function timeAgo(iso: string) {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString();
-}
+import {
+  createCollection,
+  deleteCollection,
+  displayTitle,
+  listAllSummaries,
+  listCollections,
+  listNotes,
+  renameCollection,
+  type Collection,
+  type NoteSummary,
+} from "@/lib/notes";
+import { onNoteEvent, emitNoteEvent } from "./events";
 
 function sortNotes(list: NoteSummary[]) {
-  return [...list].sort(
-    (a, b) => Number(b.pinned) - Number(a.pinned) || b.updated_at.localeCompare(a.updated_at),
-  );
+  return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updated_at.localeCompare(a.updated_at));
 }
 
 export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () => void }) {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useParams<{ id?: string }>();
-  const [search, setSearch] = useState("");
-  const [tag, setTag] = useState<string | null>(null);
-  const [tags, setTags] = useState<string[]>([]);
+  const activeId = params.id;
+
   const [notes, setNotes] = useState<NoteSummary[]>([]);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [tag, setTag] = useState<string | null>(null);
+  const [results, setResults] = useState<NoteSummary[] | null>(null);
   const reqId = useRef(0);
 
-  const load = useCallback(async (pageNum: number, append: boolean, s: string, t: string | null) => {
-    const id = ++reqId.current;
-    setLoading(true);
-    try {
-      const res = await listNotes({ search: s, tag: t, page: pageNum });
-      if (id !== reqId.current) return;
-      setNotes((prev) => (append ? [...prev, ...res.notes] : res.notes));
-      setHasMore(res.hasMore);
-      setPage(pageNum);
-      setError(null);
-    } catch (e) {
-      if (id === reqId.current) setError(e instanceof Error ? e.message : "Could not load notes");
-    } finally {
-      if (id === reqId.current) setLoading(false);
-    }
-  }, []);
-
-  // Debounced reload on search/tag change.
   useEffect(() => {
-    const t = setTimeout(() => void load(0, false, search, tag), search ? 250 : 0);
-    return () => clearTimeout(t);
-  }, [search, tag, load]);
-
-  const refreshTags = useCallback(() => {
-    listTags().then(setTags).catch(() => {});
+    Promise.all([listAllSummaries(), listCollections()])
+      .then(([n, c]) => {
+        setNotes(n);
+        setCollections(c);
+        setError(null);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Could not load your vault"))
+      .finally(() => setLoading(false));
   }, []);
-  useEffect(refreshTags, [refreshTags]);
 
-  // Live updates from the editor.
+  // Search / tag filter.
+  useEffect(() => {
+    const q = search.trim();
+    if (!q && !tag) return;
+    const id = ++reqId.current;
+    const t = setTimeout(async () => {
+      try {
+        const res = await listNotes({ search: q, tag });
+        if (id === reqId.current) setResults(res.notes);
+      } catch (e) {
+        if (id === reqId.current) setError(e instanceof Error ? e.message : "Search failed");
+      }
+    }, q ? 250 : 0);
+    return () => clearTimeout(t);
+  }, [search, tag]);
+  const filtering = Boolean(search.trim() || tag);
+
+  // Live updates from the editor and paste screen.
   useEffect(
     () =>
       onNoteEvent((e) => {
-        if (e.type === "delete") {
+        if (e.type === "collections") {
+          listCollections().then(setCollections).catch(() => {});
+        } else if (e.type === "delete") {
           setNotes((prev) => prev.filter((n) => n.id !== e.id));
-          refreshTags();
-          return;
+          setResults((prev) => prev?.filter((n) => n.id !== e.id) ?? null);
+        } else {
+          setNotes((prev) => sortNotes(prev.some((n) => n.id === e.note.id) ? prev.map((n) => (n.id === e.note.id ? e.note : n)) : [e.note, ...prev]));
+          setResults((prev) => prev?.map((n) => (n.id === e.note.id ? e.note : n)) ?? null);
         }
-        setNotes((prev) => {
-          const exists = prev.some((n) => n.id === e.note.id);
-          if (!exists && (search || tag)) return prev;
-          return sortNotes(exists ? prev.map((n) => (n.id === e.note.id ? e.note : n)) : [e.note, ...prev]);
-        });
-        if (e.note.tags.some((t) => !tags.includes(t))) refreshTags();
       }),
-    [search, tag, tags, refreshTags],
+    [],
   );
 
-  async function newNote() {
+  const tags = useMemo(() => {
+    const s = new Set<string>();
+    notes.forEach((n) => n.tags.forEach((t) => s.add(t)));
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [notes]);
+
+  const pinned = notes.filter((n) => n.pinned);
+  const byCollection = useMemo(() => {
+    const m = new Map<string | null, NoteSummary[]>();
+    notes.forEach((n) => {
+      const key = n.collection_id && collections.some((c) => c.id === n.collection_id) ? n.collection_id : null;
+      m.set(key, [...(m.get(key) ?? []), n]);
+    });
+    return m;
+  }, [notes, collections]);
+  const unsorted = byCollection.get(null) ?? [];
+
+  async function newCollection() {
+    const name = window.prompt("Name the new collection");
+    if (!name?.trim()) return;
     try {
-      const n = await createNote();
-      setNotes((prev) => sortNotes([{ ...n, preview: "" }, ...prev]));
-      onNavigate?.();
-      router.push(`/notes/${n.id}`);
+      await createCollection(name);
+      emitNoteEvent({ type: "collections" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create note");
+      setError(e instanceof Error ? e.message : "Could not create collection");
+    }
+  }
+
+  async function rename(c: Collection) {
+    setMenuFor(null);
+    const name = window.prompt("Rename collection", c.name);
+    if (!name?.trim() || name.trim() === c.name) return;
+    try {
+      await renameCollection(c.id, name);
+      emitNoteEvent({ type: "collections" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not rename collection");
+    }
+  }
+
+  async function remove(c: Collection) {
+    setMenuFor(null);
+    if (!window.confirm(`Delete the collection “${c.name}”? Its notes are kept and move to Unsorted.`)) return;
+    try {
+      await deleteCollection(c.id);
+      setNotes((prev) => prev.map((n) => (n.collection_id === c.id ? { ...n, collection_id: null } : n)));
+      emitNoteEvent({ type: "collections" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete collection");
     }
   }
 
@@ -103,104 +143,212 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
     router.refresh();
   }
 
-  return (
-    <aside className="flex h-full flex-col bg-zinc-50 dark:bg-zinc-900">
-      <div className="flex items-center justify-between px-4 pb-2 pt-4">
-        <Link href="/notes" onClick={onNavigate} className="text-lg font-semibold tracking-tight">
-          🗒️ Notes Vault
-        </Link>
-        <button
-          onClick={newNote}
-          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          title="New note"
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const noteLink = (n: NoteSummary, nested: boolean) => {
+    const active = activeId === n.id;
+    return (
+      <li key={n.id}>
+        <Link
+          href={`/notes/${n.id}`}
+          onClick={onNavigate}
+          aria-current={active ? "page" : undefined}
+          className={`flex min-h-11 items-center rounded-lg pr-3 ${nested ? "pl-9" : "pl-3"} ${
+            active ? "bg-accent-soft font-semibold text-accent-ink" : "text-ink-2 hover:bg-[#e9e5dc]"
+          }`}
         >
-          + New
-        </button>
+          <span className="truncate">{displayTitle(n)}</span>
+        </Link>
+      </li>
+    );
+  };
+
+  return (
+    <aside className="flex h-full flex-col gap-6 overflow-y-auto bg-side px-4 py-6">
+      <Link href="/notes" onClick={onNavigate} className="flex items-center gap-2.5 px-2 text-ink">
+        <span className="text-accent">
+          <Icon.Logo />
+        </span>
+        <span className="font-serif text-2xl font-semibold">Vault</span>
+      </Link>
+
+      <div className="flex flex-col gap-3">
+        <Link
+          href="/notes/new"
+          onClick={onNavigate}
+          aria-current={pathname === "/notes/new" ? "page" : undefined}
+          className={`${ui.btnPrimary} w-full`}
+        >
+          <Icon.Plus /> New note
+        </Link>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="vault-search" className="px-1 text-[13px] text-muted">
+            Search the vault
+          </label>
+          <input
+            id="vault-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Text, code, diagrams, tags"
+            className={ui.input}
+          />
+        </div>
       </div>
 
-      <div className="px-4 pb-2">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search notes…"
-          className="w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950"
-        />
-      </div>
+      {error && <p className="rounded-lg bg-log px-3 py-2 text-sm text-log-ink">{error}</p>}
+
+      {filtering ? (
+        <nav aria-label="Search results" className="flex flex-col gap-1">
+          <div className="flex items-center justify-between px-2 pb-1">
+            <span className={ui.eyebrow}>{tag && !search.trim() ? `Tagged #${tag}` : "Results"}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setTag(null);
+                setResults(null);
+              }}
+              className="min-h-9 rounded px-2 text-[13px] text-accent hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+          {results === null ? (
+            <p className="px-3 text-sm text-muted">Searching…</p>
+          ) : results.length === 0 ? (
+            <p className="px-3 text-sm text-muted">Nothing matches.</p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {results.map((n) => (
+                <li key={n.id}>
+                  <Link
+                    href={`/notes/${n.id}`}
+                    onClick={onNavigate}
+                    className={`block rounded-lg px-3 py-2 ${activeId === n.id ? "bg-accent-soft text-accent-ink" : "hover:bg-[#e9e5dc]"}`}
+                  >
+                    <span className="block truncate font-medium">{displayTitle(n)}</span>
+                    {n.title.trim() && n.preview && <span className="block truncate text-[13px] text-muted">{n.preview.replace(/\s+/g, " ")}</span>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </nav>
+      ) : (
+        <>
+          {pinned.length > 0 && (
+            <nav aria-label="Pinned" className="flex flex-col gap-1">
+              <div className={`${ui.eyebrow} px-2 pb-1`}>Pinned</div>
+              <ul className="flex flex-col gap-0.5">{pinned.map((n) => noteLink(n, false))}</ul>
+            </nav>
+          )}
+
+          <nav aria-label="Collections" className="flex flex-col gap-1">
+            <div className="flex items-center justify-between px-2 pb-1">
+              <span className={ui.eyebrow}>Collections</span>
+              <button type="button" onClick={newCollection} aria-label="New collection" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-[#e9e5dc] hover:text-ink">
+                <Icon.Plus size={16} />
+              </button>
+            </div>
+            {loading && <div className="mx-2 h-24 animate-pulse rounded-lg bg-[#e9e5dc]" />}
+            <ul className="flex flex-col gap-0.5">
+              {collections.map((c) => {
+                const list = byCollection.get(c.id) ?? [];
+                const open = !collapsed.has(c.id) || list.some((n) => n.id === activeId);
+                return (
+                  <li key={c.id} className="flex flex-col gap-0.5">
+                    <div className="group relative flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => toggle(c.id)}
+                        aria-expanded={open}
+                        className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 text-left font-semibold text-ink hover:bg-[#e9e5dc]"
+                      >
+                        <Icon.Folder />
+                        <span className="truncate">{c.name}</span>
+                        <span className="ml-auto text-[13px] font-normal text-muted">{list.length}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMenuFor(menuFor === c.id ? null : c.id)}
+                        aria-label={`Options for ${c.name}`}
+                        aria-expanded={menuFor === c.id}
+                        className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg text-muted opacity-60 hover:bg-[#e9e5dc] hover:text-ink group-hover:opacity-100"
+                      >
+                        <Icon.More size={16} />
+                      </button>
+                      {menuFor === c.id && (
+                        <div className="absolute right-0 top-11 z-20 flex w-40 flex-col rounded-[10px] border border-line bg-white p-1 shadow-lg">
+                          <button type="button" onClick={() => rename(c)} className="min-h-10 rounded-md px-3 text-left text-sm hover:bg-side">
+                            Rename
+                          </button>
+                          <button type="button" onClick={() => remove(c)} className="min-h-10 rounded-md px-3 text-left text-sm text-log-ink hover:bg-log">
+                            Delete collection
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {open && list.length > 0 && <ul className="flex flex-col gap-0.5">{list.map((n) => noteLink(n, true))}</ul>}
+                    {open && list.length === 0 && <p className="py-1 pl-9 text-[13px] text-muted">No notes yet</p>}
+                  </li>
+                );
+              })}
+              {(unsorted.length > 0 || (!loading && collections.length === 0)) && (
+                <li className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => toggle("__unsorted")}
+                    aria-expanded={!collapsed.has("__unsorted")}
+                    className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-left font-semibold text-ink hover:bg-[#e9e5dc]"
+                  >
+                    <Icon.Inbox />
+                    <span>Unsorted</span>
+                    <span className="ml-auto text-[13px] font-normal text-muted">{unsorted.length}</span>
+                  </button>
+                  {(!collapsed.has("__unsorted") || unsorted.some((n) => n.id === activeId)) &&
+                    (unsorted.length ? (
+                      <ul className="flex flex-col gap-0.5">{unsorted.map((n) => noteLink(n, true))}</ul>
+                    ) : (
+                      <p className="py-1 pl-9 text-[13px] text-muted">Your notes will appear here</p>
+                    ))}
+                </li>
+              )}
+            </ul>
+          </nav>
+        </>
+      )}
 
       {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-4 pb-2">
-          {tags.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTag(tag === t ? null : t)}
-              className={`rounded-full px-2 py-0.5 text-xs ${
-                tag === t
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "bg-zinc-200/70 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300"
-              }`}
-            >
-              #{t}
-            </button>
-          ))}
+        <div className="flex flex-col gap-2 px-2">
+          <div className={ui.eyebrow}>Tags</div>
+          <div className="flex flex-wrap gap-2">
+            {tags.map((t) => (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={tag === t}
+                onClick={() => setTag(tag === t ? null : t)}
+                className={tag === t ? "inline-flex items-center rounded-full border border-accent bg-accent px-3 py-1.5 text-[13px] text-white" : ui.chip}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto px-2 pb-2">
-        {error && <p className="px-2 py-2 text-sm text-red-600">{error}</p>}
-        {!loading && notes.length === 0 && !error && (
-          <p className="px-2 py-6 text-center text-sm text-zinc-500">
-            {search || tag ? "No matching notes." : "No notes yet."}
-          </p>
-        )}
-        <ul className="space-y-0.5">
-          {notes.map((n) => {
-            const active = params.id === n.id;
-            return (
-              <li key={n.id}>
-                <Link
-                  href={`/notes/${n.id}`}
-                  onClick={onNavigate}
-                  className={`block rounded-md px-3 py-2 ${
-                    active ? "bg-white shadow-sm dark:bg-zinc-800" : "hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    {n.pinned && <span className="text-xs text-amber-500">★</span>}
-                    <span className="truncate text-sm font-medium">{displayTitle(n)}</span>
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
-                    <span className="shrink-0">{timeAgo(n.updated_at)}</span>
-                    <span className="truncate">
-                      {n.title.trim() ? n.preview.replace(/\s+/g, " ") : ""}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        {hasMore && (
-          <button
-            onClick={() => void load(page + 1, true, search, tag)}
-            disabled={loading}
-            className="mt-2 w-full rounded-md py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-          >
-            {loading ? "Loading…" : "Load more"}
-          </button>
-        )}
-        {loading && notes.length === 0 && (
-          <div className="space-y-2 px-2 pt-2">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-11 animate-pulse rounded-md bg-zinc-200/60 dark:bg-zinc-800" />
-            ))}
-          </div>
-        )}
-      </nav>
-
-      <div className="flex items-center justify-between border-t border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800">
-        <span className="truncate" title={email}>{email}</span>
-        <button onClick={signOut} className="ml-2 shrink-0 rounded px-2 py-1 hover:bg-zinc-200 dark:hover:bg-zinc-800">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-line px-2 pt-4 text-[13px] text-muted">
+        <span className="truncate" title={email}>
+          {email}
+        </span>
+        <button type="button" onClick={signOut} className="min-h-9 shrink-0 rounded-lg px-2 hover:bg-[#e9e5dc] hover:text-ink">
           Log out
         </button>
       </div>

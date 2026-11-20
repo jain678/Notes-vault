@@ -1,82 +1,185 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
 
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Design tokens (from the Notes Vault design) */
+@theme {
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --font-serif: "Newsreader Variable", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --color-paper: #faf8f4;
+  --color-side: #f2efe8;
+  --color-line: #e2ded3;
+  --color-line-soft: #e8e4d9;
+  --color-line-strong: #cfcabd;
+  --color-ink: #1f1e1b;
+  --color-ink-2: #3b3a35;
+  --color-muted: #5e5b53;
+  --color-accent: #0f6b5c;
+  --color-accent-hover: #0a4a40;
+  --color-accent-soft: #e3eee9;
+  --color-accent-ink: #0b5446;
+  --color-accent-line: #8db9ad;
+  --color-tip: #f3ebdd;
+  --color-code: #1f2421;
+  --color-code-head: #2a312d;
+  --color-code-ink: #e8e6df;
+  --color-code-muted: #c9cfc9;
+  --color-log: #f6e9e4;
+  --color-log-ink: #5a1f12;
+  --color-placeholder: #e9e5da;
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: light;
+  background: var(--color-paper);
+}
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink);
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
-/* ---------- Editor ---------- */
-.tiptap p.is-editor-empty:first-child::before,
-.tiptap .is-empty::before {
+/* ---------- Reading / editing typography ---------- */
+.vault-doc {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  line-height: 1.7;
+  color: var(--color-ink);
+  counter-reset: figure;
+  outline: none;
+}
+.vault-doc :where(p, h1, h2, h3, h4, ul, ol, figure, pre, blockquote, hr) { margin: 0; }
+.vault-doc > * + * { margin-top: 20px; }
+.vault-doc h1, .vault-doc h2, .vault-doc h3, .vault-doc h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  scroll-margin-top: 96px;
+}
+.vault-doc h1 { font-size: 34px; line-height: 1.18; }
+.vault-doc h2 { font-size: 28px; line-height: 1.25; }
+.vault-doc h3 { font-size: 22px; line-height: 1.3; }
+.vault-doc h4 { font-size: 19px; line-height: 1.4; }
+.vault-doc > :is(h1, h2, h3, h4):not(:first-child) { margin-top: 36px; }
+.vault-doc > :is(h1, h2, h3, h4) + * { margin-top: 12px; }
+
+.vault-doc a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; }
+.vault-doc a:hover { color: var(--color-accent-hover); }
+.vault-doc strong { font-weight: 600; }
+
+.vault-doc ul, .vault-doc ol { padding-left: 24px; }
+.vault-doc ul { list-style: disc; }
+.vault-doc ol { list-style: decimal; }
+.vault-doc li + li { margin-top: 6px; }
+.vault-doc li > p { margin-top: 0; }
+.vault-doc li::marker { color: var(--color-muted); }
+
+.vault-doc ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
+.vault-doc ul[data-type="taskList"] li { display: flex; gap: 10px; align-items: flex-start; }
+.vault-doc ul[data-type="taskList"] li > label { margin-top: 6px; user-select: none; }
+.vault-doc ul[data-type="taskList"] li > label input { width: 18px; height: 18px; accent-color: var(--color-accent); }
+.vault-doc ul[data-type="taskList"] li > div { flex: 1; }
+.vault-doc ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--color-muted); text-decoration: line-through; }
+
+.vault-doc code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  background: #efebe2;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+/* Quotes read as the design's "Tip" callout. */
+.vault-doc blockquote {
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: var(--color-tip);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink-2);
+}
+.vault-doc blockquote > * + * { margin-top: 8px; }
+
+.vault-doc hr { border: 0; border-top: 1px solid var(--color-line); }
+.vault-doc > hr { margin-top: 32px; margin-bottom: 12px; }
+
+.vault-doc .tableWrapper { overflow-x: auto; border: 1px solid var(--color-line); border-radius: 12px; background: #fff; }
+.vault-doc table { border-collapse: collapse; width: 100%; font-family: var(--font-sans); font-size: 15px; line-height: 1.5; }
+.vault-doc th, .vault-doc td { border-bottom: 1px solid var(--color-line); padding: 10px 14px; text-align: left; vertical-align: top; position: relative; }
+.vault-doc th + th, .vault-doc td + td { border-left: 1px solid var(--color-line); }
+.vault-doc tr:last-child td { border-bottom: 0; }
+.vault-doc th { background: var(--color-side); font-weight: 600; }
+.vault-doc td > p, .vault-doc th > p { margin-top: 0; }
+.vault-doc .selectedCell::after { content: ""; position: absolute; inset: 0; background: rgb(15 107 92 / 0.12); pointer-events: none; }
+
+/* Figures (images and diagrams) are numbered automatically. */
+.vault-doc .vault-figure { counter-increment: figure; }
+.vault-doc .vault-figure figcaption .fig-num::before { content: "Figure " counter(figure) "."; font-weight: 500; color: var(--color-ink-2); }
+
+/* Editing affordances */
+.vault-doc.is-editing p.is-editor-empty:first-child::before,
+.vault-doc.is-editing .is-empty:not(li)::before {
   content: attr(data-placeholder);
   float: left;
   height: 0;
   pointer-events: none;
-  color: var(--color-zinc-400);
+  color: #9a968b;
 }
-.tiptap :not(p).is-empty::before { display: none; }
-.tiptap p.is-editor-empty:first-child::before { display: block; }
+.vault-doc .ProseMirror-selectednode { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 12px; }
+.vault-doc pre code { background: none; padding: 0; font-size: inherit; border-radius: 0; }
 
-.tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0.25rem; }
-.tiptap ul[data-type="taskList"] li { display: flex; gap: 0.5rem; align-items: flex-start; }
-.tiptap ul[data-type="taskList"] li > label { margin-top: 0.3rem; user-select: none; }
-.tiptap ul[data-type="taskList"] li > div { flex: 1; }
-.tiptap ul[data-type="taskList"] li > div > p { margin: 0; }
-.tiptap ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.6; }
-
-.tiptap table { border-collapse: collapse; table-layout: fixed; width: 100%; overflow: hidden; }
-.tiptap td, .tiptap th {
-  border: 1px solid var(--color-zinc-300);
-  padding: 0.4rem 0.6rem;
-  vertical-align: top;
-  position: relative;
-}
-.dark .tiptap td, .dark .tiptap th { border-color: var(--color-zinc-700); }
-@media (prefers-color-scheme: dark) {
-  .tiptap td, .tiptap th { border-color: var(--color-zinc-700); }
-}
-.tiptap th { background: color-mix(in oklab, var(--color-zinc-500) 10%, transparent); font-weight: 600; text-align: left; }
-.tiptap td > p, .tiptap th > p { margin: 0; }
-.tiptap .selectedCell::after {
-  content: ""; position: absolute; inset: 0; background: rgb(59 130 246 / 0.15); pointer-events: none;
-}
-.tiptap .tableWrapper { overflow-x: auto; margin: 1.25rem 0; }
-
-.tiptap a { cursor: pointer; }
-.tiptap hr.ProseMirror-selectednode,
-.tiptap .ProseMirror-selectednode > .code-block { outline: 2px solid rgb(59 130 246); }
-
-/* The code block node view provides its own chrome. */
-.tiptap .code-block pre { margin: 0; background: transparent; color: inherit; border-radius: 0; }
-.tiptap .code-block code { background: none; padding: 0; font-size: inherit; color: inherit; }
-.tiptap .code-block code::before, .tiptap .code-block code::after { content: none; }
-
-/* ---------- Syntax highlighting (light / dark) ---------- */
-.hljs { color: #24292e; }
-.hljs-comment, .hljs-quote { color: #6a737d; font-style: italic; }
-.hljs-keyword, .hljs-selector-tag, .hljs-type, .hljs-meta .hljs-keyword, .hljs-doctag { color: #d73a49; }
-.hljs-string, .hljs-regexp, .hljs-addition, .hljs-meta .hljs-string { color: #032f62; }
-.hljs-number, .hljs-literal, .hljs-variable, .hljs-template-variable, .hljs-attr, .hljs-selector-attr, .hljs-selector-pseudo { color: #005cc5; }
-.hljs-title, .hljs-section, .hljs-title.function_, .hljs-title.class_ { color: #6f42c1; }
-.hljs-built_in, .hljs-symbol, .hljs-bullet, .hljs-link { color: #e36209; }
-.hljs-name, .hljs-tag, .hljs-selector-id, .hljs-selector-class { color: #22863a; }
-.hljs-deletion { color: #b31d28; }
+/* ---------- Syntax colours (dark code panels, from the design) ---------- */
+.hljs { color: var(--color-code-ink); }
+.hljs-comment, .hljs-quote { color: #a3a8a1; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-type, .hljs-meta .hljs-keyword, .hljs-doctag, .hljs-built_in { color: #8fd3c0; }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-meta .hljs-string, .hljs-template-tag { color: #f0c987; }
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet { color: #e6a5a0; }
+.hljs-title, .hljs-section, .hljs-title.function_, .hljs-title.class_ { color: #b7d7f5; }
+.hljs-attr, .hljs-variable, .hljs-template-variable, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-property { color: #d7c4f0; }
+.hljs-name, .hljs-tag, .hljs-selector-id, .hljs-selector-class { color: #8fd3c0; }
+.hljs-deletion { color: #f2a097; }
+.hljs-link { text-decoration: underline; }
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: bold; }
 
-@media (prefers-color-scheme: dark) {
-  .hljs { color: #e1e4e8; }
-  .hljs-comment, .hljs-quote { color: #8b949e; }
-  .hljs-keyword, .hljs-selector-tag, .hljs-type, .hljs-meta .hljs-keyword, .hljs-doctag { color: #ff7b72; }
-  .hljs-string, .hljs-regexp, .hljs-addition, .hljs-meta .hljs-string { color: #a5d6ff; }
-  .hljs-number, .hljs-literal, .hljs-variable, .hljs-template-variable, .hljs-attr, .hljs-selector-attr, .hljs-selector-pseudo { color: #79c0ff; }
-  .hljs-title, .hljs-section, .hljs-title.function_, .hljs-title.class_ { color: #d2a8ff; }
-  .hljs-built_in, .hljs-symbol, .hljs-bullet, .hljs-link { color: #ffa657; }
-  .hljs-name, .hljs-tag, .hljs-selector-id, .hljs-selector-class { color: #7ee787; }
-  .hljs-deletion { color: #ffa198; }
+/* Rendered previews on the paste screen */
+.md-preview > * + * { margin-top: 10px; }
+.md-preview ul { list-style: disc; padding-left: 22px; }
+.md-preview ol { list-style: decimal; padding-left: 22px; }
+.md-preview h1, .md-preview h2, .md-preview h3 { font-weight: 600; font-size: 20px; }
+.md-preview a { color: var(--color-accent); text-decoration: underline; }
+.md-preview code { font-family: var(--font-mono); font-size: 0.85em; background: #efebe2; border-radius: 5px; padding: 1px 5px; }
+.md-preview table { border-collapse: collapse; font-family: var(--font-sans); font-size: 14px; width: 100%; }
+.md-preview th, .md-preview td { border: 1px solid var(--color-line); padding: 6px 10px; text-align: left; }
+.md-preview th { background: var(--color-side); font-weight: 600; }
+.md-preview input[type="checkbox"] { accent-color: var(--color-accent); margin-right: 6px; }
+
+/* Link pasted on its own line */
+.vault-doc .link-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  max-width: 520px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--color-ink);
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.4;
 }
+.vault-doc .link-card:hover { border-color: var(--color-accent); color: var(--color-ink); }
+.vault-doc .link-card svg { color: var(--color-accent); flex-shrink: 0; }
+.vault-doc .link-card-text { display: flex; flex-direction: column; min-width: 0; }
+.vault-doc .link-card-host { font-weight: 500; }
+.vault-doc .link-card-url { font-size: 13px; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vault-doc.is-editing .link-card { pointer-events: none; }

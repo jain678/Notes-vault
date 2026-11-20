@@ -10,22 +10,21 @@ structured document, private to your account. See [`docs/PLAN.md`](docs/PLAN.md)
 ## Features
 
 - Email + password sign up / sign in / password reset.
-- Every note, image and file is private to its owner: enforced by Postgres RLS and Storage policies, not just the UI.
-- Paste handling:
-  - rich text from web pages / Docs → headings, lists, links, tables
-  - Markdown → formatted content
-  - code (from VS Code or plain text) → highlighted code block with detected language
-  - ```` ```mermaid ```` or bare Mermaid → rendered diagram
-  - screenshots / images → uploaded and shown inline
-  - any other file (≤ 25 MB) → download chip
-- Paste anywhere on the empty screen to instantly create a note.
-- Autosave, full-text search, tags, pinning, export to Markdown, dark mode, mobile layout.
+- Every note, collection, image and file is private to its owner: enforced by Postgres RLS and Storage policies, not just the UI.
+- **Paste → structure.** The New note screen reads a raw dump without any Markdown and splits it into blocks:
+  text, headings, lists and checklists, tables (Markdown or tab-separated from spreadsheets), code with its language,
+  Mermaid diagrams, logs and stack traces, links, images and files. Each block shows why it was detected and can be
+  re-typed before saving. The original paste can be kept with the note.
+- **Reading view.** Serif reading typography, dark code panels with Copy, numbered figures for images and diagrams
+  (with "View source"), log panels, link cards, tip callouts, and an "On this page" outline from the headings.
+- **Editing.** Edit switches the same page into a rich editor with smart paste (rich HTML, Markdown, code, screenshots).
+- Collections (folders) and tags in the sidebar, full-text search, pinning, export to Markdown, mobile layout.
 
 ## Setup with your Supabase project
 
 1. **Create the schema.** Open Supabase → SQL Editor, paste the contents of
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) and run it, then do the same with
-   [`supabase/migrations/0002_grants.sql`](supabase/migrations/0002_grants.sql).
+   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) and run it, then do the same, in order, with
+   [`0002_grants.sql`](supabase/migrations/0002_grants.sql) and [`0003_collections.sql`](supabase/migrations/0003_collections.sql).
    (Or with the CLI: `npx supabase link --project-ref <ref>` then `npx supabase db push`.)
 2. **Auth URLs.** Supabase → Authentication → URL Configuration:
    - Site URL: your production URL (or `http://localhost:3000` while developing)
@@ -63,8 +62,10 @@ npm run test:e2e      # browser: sign up, paste everything, reload, check persis
 
 ```
 app/                      routes: /login, /auth/callback, /reset-password, /notes, /notes/[id]
-components/editor/        Tiptap setup, smart paste, code/Mermaid block, image & file nodes
-components/notes/         sidebar, editor page, tags, empty "dump" screen
+components/editor/        Tiptap setup, smart paste, code/Mermaid/log block, image, file and link-card nodes
+components/notes/         sidebar, reading/editing view, New note (paste → blocks), home screen
+components/ui.tsx         design tokens as shared classes, line icons
+lib/structure.ts          raw dump → typed blocks → note document
 lib/supabase/             browser / server / proxy clients
 lib/notes.ts              data access (notes, uploads, signed URLs)
 proxy.ts                  session refresh + route protection

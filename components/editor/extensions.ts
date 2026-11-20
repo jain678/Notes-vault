@@ -4,11 +4,12 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import { Placeholder } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { CodeBlockView } from "./CodeBlockView";
 import { FileAttachment } from "./FileAttachment";
+import { FileAttachmentBase, LinkCard, StoredImageBase } from "./nodes";
 import { StoredImage } from "./StoredImage";
 import { lowlight } from "./lowlight";
 import { applyPayload, payloadFromDataTransfer, type UploadHandler } from "./clipboard";
@@ -45,13 +46,25 @@ const SmartPaste = Extension.create<{ onFiles: UploadHandler }>({
   },
 });
 
-export function buildExtensions(onFiles: UploadHandler): Extensions {
+function common(): Extensions {
   return [
     StarterKit.configure({
       codeBlock: false,
       link: { openOnClick: false, autolink: true, linkOnPaste: true, defaultProtocol: "https" },
       heading: { levels: [1, 2, 3, 4] },
     }),
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    TableKit.configure({ table: { resizable: false } }),
+    LinkCard,
+    Markdown,
+  ];
+}
+
+/** Extensions for the interactive editor (React node views, smart paste). */
+export function buildExtensions(onFiles: UploadHandler): Extensions {
+  return [
+    ...common(),
     CodeBlockLowlight.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
@@ -59,14 +72,20 @@ export function buildExtensions(onFiles: UploadHandler): Extensions {
     }).configure({ lowlight, defaultLanguage: "plaintext" }),
     StoredImage,
     FileAttachment,
-    TaskList,
-    TaskItem.configure({ nested: true }),
-    TableKit.configure({ table: { resizable: false } }),
     Placeholder.configure({
       placeholder: ({ node }) =>
-        node.type.name === "heading" ? "Heading" : "Write or paste anything — text, code, images, files, ```mermaid diagrams…",
+        node.type.name === "heading" ? "Heading" : "Write or paste anything: text, code, images, files, diagrams…",
     }),
-    Markdown,
     SmartPaste.configure({ onFiles }),
+  ];
+}
+
+/** Same schema without any UI, for converting content outside the editor. */
+export function buildHeadlessExtensions(): Extensions {
+  return [
+    ...common(),
+    CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
+    StoredImageBase,
+    FileAttachmentBase,
   ];
 }
