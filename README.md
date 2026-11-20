@@ -18,7 +18,12 @@ structured document, private to your account. See [`docs/PLAN.md`](docs/PLAN.md)
 - **Reading view.** Serif reading typography, dark code panels with Copy, numbered figures for images and diagrams
   (with "View source"), log panels, link cards, tip callouts, and an "On this page" outline from the headings.
 - **Editing.** Edit switches the same page into a rich editor with smart paste (rich HTML, Markdown, code, screenshots).
-- Collections (folders) and tags in the sidebar, full-text search, pinning, export to Markdown, mobile layout.
+- **Export.** Any note as Markdown or PDF (A4 pages, page numbers, running header, nothing split awkwardly).
+- **Books.** Click *Select* in the sidebar, tick notes (or whole collections) in reading order, then *Make book*;
+  or use *Make a book* on a collection's menu. Reorder chapters, set a title, and download one PDF with a cover,
+  a table of contents with page numbers, and each note as a chapter.
+  PDFs use the browser's print dialog: choose **Save as PDF**.
+- Collections (folders) and tags in the sidebar, full-text search, pinning, mobile layout.
 
 ## Setup with your Supabase project
 
@@ -66,6 +71,7 @@ components/editor/        Tiptap setup, smart paste, code/Mermaid/log block, ima
 components/notes/         sidebar, reading/editing view, New note (paste → blocks), home screen
 components/ui.tsx         design tokens as shared classes, line icons
 lib/structure.ts          raw dump → typed blocks → note document
+lib/print.ts              PDF export: snapshot → paginate with Paged.js (public/vendor, copied on install) → print
 lib/supabase/             browser / server / proxy clients
 lib/notes.ts              data access (notes, uploads, signed URLs)
 proxy.ts                  session refresh + route protection

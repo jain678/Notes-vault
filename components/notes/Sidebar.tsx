@@ -32,6 +32,23 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  // Selecting notes to make a book. Insertion order = chapter order.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggleSelected = (id: string) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const setGroupSelected = (ids: string[], on: boolean) =>
+    setSelected((prev) => (on ? [...prev, ...ids.filter((id) => !prev.includes(id))] : prev.filter((id) => !ids.includes(id))));
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected([]);
+  };
+  const makeBook = () => {
+    if (!selected.length) return;
+    const ids = selected.join(",");
+    stopSelecting();
+    onNavigate?.();
+    router.push(`/notes/book?ids=${ids}`);
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -153,6 +170,17 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
 
   const noteLink = (n: NoteSummary, nested: boolean) => {
     const active = activeId === n.id;
+    if (selecting) {
+      const checked = selected.includes(n.id);
+      return (
+        <li key={n.id}>
+          <label className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg pr-3 ${nested ? "pl-3" : "pl-3"} ${checked ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-[#e9e5dc]"}`}>
+            <input type="checkbox" checked={checked} onChange={() => toggleSelected(n.id)} className="h-[18px] w-[18px] shrink-0 accent-accent" />
+            <span className="truncate">{displayTitle(n)}</span>
+          </label>
+        </li>
+      );
+    }
     return (
       <li key={n.id}>
         <Link
@@ -226,7 +254,10 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
             <p className="px-3 text-sm text-muted">Nothing matches.</p>
           ) : (
             <ul className="flex flex-col gap-0.5">
-              {results.map((n) => (
+              {results.map((n) =>
+                selecting ? (
+                  noteLink(n, false)
+                ) : (
                 <li key={n.id}>
                   <Link
                     href={`/notes/${n.id}`}
@@ -237,7 +268,8 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
                     {n.title.trim() && n.preview && <span className="block truncate text-[13px] text-muted">{n.preview.replace(/\s+/g, " ")}</span>}
                   </Link>
                 </li>
-              ))}
+                ),
+              )}
             </ul>
           )}
         </nav>
@@ -253,10 +285,23 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
           <nav aria-label="Collections" className="flex flex-col gap-1">
             <div className="flex items-center justify-between px-2 pb-1">
               <span className={ui.eyebrow}>Collections</span>
-              <button type="button" onClick={newCollection} aria-label="New collection" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-[#e9e5dc] hover:text-ink">
-                <Icon.Plus size={16} />
-              </button>
+              <span className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+                  aria-pressed={selecting}
+                  className="min-h-9 rounded-lg px-2 text-[13px] font-medium text-accent hover:bg-[#e9e5dc]"
+                >
+                  {selecting ? "Cancel" : "Select"}
+                </button>
+                {!selecting && (
+                  <button type="button" onClick={newCollection} aria-label="New collection" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-[#e9e5dc] hover:text-ink">
+                    <Icon.Plus size={16} />
+                  </button>
+                )}
+              </span>
             </div>
+            {selecting && <p className="m-0 px-2 pb-1 text-[13px] text-muted">Pick notes in the order you want them in the book.</p>}
             {loading && <div className="mx-2 h-24 animate-pulse rounded-lg bg-[#e9e5dc]" />}
             <ul className="flex flex-col gap-0.5">
               {collections.map((c) => {
@@ -265,6 +310,18 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
                 return (
                   <li key={c.id} className="flex flex-col gap-0.5">
                     <div className="group relative flex items-center">
+                      {selecting && list.length > 0 && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select all notes in ${c.name}`}
+                          checked={list.every((n) => selected.includes(n.id))}
+                          ref={(el) => {
+                            if (el) el.indeterminate = list.some((n) => selected.includes(n.id)) && !list.every((n) => selected.includes(n.id));
+                          }}
+                          onChange={(e) => setGroupSelected(list.map((n) => n.id), e.target.checked)}
+                          className="ml-2 h-[18px] w-[18px] shrink-0 accent-accent"
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={() => toggle(c.id)}
@@ -286,6 +343,17 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
                       </button>
                       {menuFor === c.id && (
                         <div className="absolute right-0 top-11 z-20 flex w-40 flex-col rounded-[10px] border border-line bg-white p-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMenuFor(null);
+                              onNavigate?.();
+                              router.push(`/notes/book?collection=${c.id}`);
+                            }}
+                            className="min-h-10 rounded-md px-3 text-left text-sm hover:bg-side"
+                          >
+                            Make a book
+                          </button>
                           <button type="button" onClick={() => rename(c)} className="min-h-10 rounded-md px-3 text-left text-sm hover:bg-side">
                             Rename
                           </button>
@@ -302,16 +370,27 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
               })}
               {(unsorted.length > 0 || (!loading && collections.length === 0)) && (
                 <li className="flex flex-col gap-0.5">
+                  <div className="flex items-center">
+                  {selecting && unsorted.length > 0 && (
+                    <input
+                      type="checkbox"
+                      aria-label="Select all unsorted notes"
+                      checked={unsorted.every((n) => selected.includes(n.id))}
+                      onChange={(e) => setGroupSelected(unsorted.map((n) => n.id), e.target.checked)}
+                      className="ml-2 h-[18px] w-[18px] shrink-0 accent-accent"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => toggle("__unsorted")}
                     aria-expanded={!collapsed.has("__unsorted")}
-                    className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-left font-semibold text-ink hover:bg-[#e9e5dc]"
+                    className="flex min-h-11 flex-1 items-center gap-2.5 rounded-lg px-2 text-left font-semibold text-ink hover:bg-[#e9e5dc]"
                   >
                     <Icon.Inbox />
                     <span>Unsorted</span>
                     <span className="ml-auto text-[13px] font-normal text-muted">{unsorted.length}</span>
                   </button>
+                  </div>
                   {(!collapsed.has("__unsorted") || unsorted.some((n) => n.id === activeId)) &&
                     (unsorted.length ? (
                       <ul className="flex flex-col gap-0.5">{unsorted.map((n) => noteLink(n, true))}</ul>
@@ -344,7 +423,18 @@ export function Sidebar({ email, onNavigate }: { email: string; onNavigate?: () 
         </div>
       )}
 
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-line px-2 pt-4 text-[13px] text-muted">
+      {selecting && (
+        <div className="sticky bottom-0 -mx-4 -mb-6 mt-auto flex items-center justify-between gap-2 border-t border-line bg-side px-4 py-3" role="region" aria-label="Selection">
+          <span className="text-sm text-ink-2" aria-live="polite">
+            {selected.length} selected
+          </span>
+          <button type="button" onClick={makeBook} disabled={!selected.length} className={`${ui.btnPrimary} min-h-10 px-4`}>
+            Make book
+          </button>
+        </div>
+      )}
+
+      <div className={`${selecting ? "hidden" : "mt-auto flex"} items-center justify-between gap-2 border-t border-line px-2 pt-4 text-[13px] text-muted`}>
         <span className="truncate" title={email}>
           {email}
         </span>

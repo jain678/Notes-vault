@@ -17,6 +17,7 @@ import {
   type Collection,
   type Note,
 } from "@/lib/notes";
+import { printHtml, snapshot, waitForRender } from "@/lib/print";
 import { readingMinutes } from "@/lib/structure";
 import { emitNoteEvent } from "./events";
 import { CollectionSelect, parseTags } from "./fields";
@@ -43,6 +44,9 @@ export function NoteView({ note }: { note: Note }) {
   const [uploads, setUploads] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const docWrap = useRef<HTMLDivElement>(null);
   const [showOriginal, setShowOriginal] = useState(false);
 
   const editorRef = useRef<Editor | null>(null);
@@ -242,7 +246,34 @@ export function NoteView({ note }: { note: Note }) {
     }
   }
 
+  async function onExportPdf() {
+    setExportOpen(false);
+    setMenuOpen(false);
+    if (!editor || !docWrap.current) return;
+    setExporting(true);
+    try {
+      if (editing) {
+        await flush();
+        setEditing(false);
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      await waitForRender(docWrap.current);
+      const vaultDoc = docWrap.current.querySelector(".vault-doc") as HTMLElement;
+      const name = displayTitle({ title, preview: outline.text });
+      const meta = [collectionName, `Updated ${updatedLabel}`, ...tags.map((t) => `#${t}`)].join(" · ");
+      const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const html = `<article><h1 class="note-title chapter-title">${esc(name)}</h1><div class="note-meta">${esc(meta)}</div>${snapshot(vaultDoc)}</article>`;
+      await printHtml(html, name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create the PDF");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function onExport() {
+    setExportOpen(false);
+    setMenuOpen(false);
     if (!editor) return;
     const name = displayTitle({ title, preview: outline.text });
     const md = `# ${name}\n\n${editor.getMarkdown()}`;
@@ -307,9 +338,28 @@ export function NoteView({ note }: { note: Note }) {
               <Icon.Pencil size={16} /> Edit
             </button>
           )}
-          <button type="button" onClick={onExport} className={`${ui.btn} hidden sm:inline-flex`}>
-            Export
-          </button>
+          <div className="relative hidden sm:block">
+            <button
+              type="button"
+              onClick={() => setExportOpen((v) => !v)}
+              aria-expanded={exportOpen}
+              aria-haspopup="menu"
+              disabled={exporting}
+              className={ui.btn}
+            >
+              {exporting ? "Preparing PDF…" : "Export"}
+            </button>
+            {exportOpen && (
+              <div role="menu" className="absolute right-0 top-12 z-30 flex w-56 flex-col rounded-xl border border-line bg-white p-1 shadow-lg">
+                <button type="button" role="menuitem" onClick={onExportPdf} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-side">
+                  <Icon.File size={16} /> PDF
+                </button>
+                <button type="button" role="menuitem" onClick={onExport} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-side">
+                  <Icon.Download size={16} /> Markdown (.md)
+                </button>
+              </div>
+            )}
+          </div>
           <div className="relative">
             <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-label="More actions" aria-expanded={menuOpen} className={`${ui.btn} w-11 px-0`}>
               <Icon.More />
@@ -327,7 +377,10 @@ export function NoteView({ note }: { note: Note }) {
                 >
                   <Icon.Star size={16} /> {pinned ? "Unpin" : "Pin to top"}
                 </button>
-                <button type="button" onClick={() => { onExport(); setMenuOpen(false); }} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-side sm:hidden">
+                <button type="button" onClick={onExportPdf} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-side sm:hidden">
+                  <Icon.File size={16} /> Export PDF
+                </button>
+                <button type="button" onClick={onExport} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-side sm:hidden">
                   <Icon.Download size={16} /> Export Markdown
                 </button>
                 {note.raw_paste && (
@@ -440,9 +493,11 @@ export function NoteView({ note }: { note: Note }) {
 
           {editing && editor && <Toolbar editor={editor} onFiles={(f) => void handleFiles(f, undefined, editor)} />}
 
-          <EditingContext.Provider value={editing}>
-            <EditorContent editor={editor} className={editing ? "min-h-[50vh] pb-24" : ""} />
-          </EditingContext.Provider>
+          <div ref={docWrap}>
+            <EditingContext.Provider value={editing}>
+              <EditorContent editor={editor} className={editing ? "min-h-[50vh] pb-24" : ""} />
+            </EditingContext.Provider>
+          </div>
 
           {showOriginal && note.raw_paste && (
             <section aria-label="Original paste" className="mt-6 flex flex-col gap-2 font-sans">

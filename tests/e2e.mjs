@@ -78,6 +78,12 @@ const browser = await chromium.launch(proxyUrl ? { proxy: { server: proxyUrl, by
 let page;
 try {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  // The print dialog can't be driven headless: record that it was opened instead.
+  await ctx.addInitScript(() => {
+    window.print = () => {
+      window.__printed = true;
+    };
+  });
   page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -157,6 +163,37 @@ try {
   await page.getByLabel("Search the vault").fill("meilisearch");
   await page.getByRole("navigation", { name: "Search results" }).getByRole("link", { name: /Infra meeting/ }).waitFor();
   await page.getByLabel("Search the vault").fill("");
+
+  // 8b. Export this note as PDF: pages are laid out and the print dialog opens.
+  const printedFrame = async () => {
+    for (let i = 0; i < 150; i++) {
+      for (const f of page.frames())
+        if (f !== page.mainFrame() && (await f.evaluate(() => window.__printed === true).catch(() => false))) return f;
+      await page.waitForTimeout(200);
+    }
+    throw new Error("print dialog never opened");
+  };
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("menuitem", { name: "PDF" }).click();
+  const notePdf = await printedFrame();
+  assert.ok((await notePdf.locator(".pagedjs_page").count()) >= 1, "note PDF has pages");
+  await page.waitForFunction(() => !document.querySelector("iframe"), null, { timeout: 10000 }).catch(() => {});
+
+  // 8c. Make a book from the sidebar selection.
+  await page.evaluate(() => document.querySelectorAll("iframe").forEach((f) => f.remove()));
+  const tree = page.getByRole("navigation", { name: "Collections" });
+  await tree.getByRole("button", { name: "Select" }).click();
+  await tree.getByLabel("Select all notes in Engineering").check();
+  await page.getByRole("button", { name: "Make book" }).click();
+  await page.waitForURL("**/notes/book?ids=*");
+  await page.getByLabel("Book title").fill("Infra handbook");
+  await page.locator(".chapter .mermaid-diagram svg").waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const bookPdf = await printedFrame();
+  assert.ok((await bookPdf.locator(".pagedjs_page").count()) >= 3, "book has cover, contents and a chapter");
+  assert.equal(await bookPdf.evaluate(() => document.title), "Infra handbook");
+  await page.goto(noteUrl);
+  await page.getByRole("heading", { level: 1, name: "Infra meeting: search indexing" }).waitFor();
 
   // 9. A different user cannot open it.
   const ctx2 = await browser.newContext();
