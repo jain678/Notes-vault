@@ -39,15 +39,13 @@ export function Toolbar({ editor, onFiles }: Props) {
   }
 
   const btn = (active: boolean) =>
-    `rounded px-2 py-1 text-sm transition-colors ${
-      active
-        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-        : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+    `min-h-9 min-w-9 rounded-md px-2 text-sm transition-colors ${
+      active ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-side"
     }`;
-  const sep = <span className="mx-1 h-5 w-px bg-zinc-200 dark:bg-zinc-700" />;
+  const sep = <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />;
 
   return (
-    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-zinc-200 bg-white/90 px-2 py-1.5 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <div role="toolbar" aria-label="Formatting" className="sticky top-[70px] z-10 flex flex-wrap items-center gap-0.5 rounded-xl border border-line bg-white/95 p-1.5 font-sans shadow-sm backdrop-blur">
       <button className={btn(s.h1)} onClick={() => c().toggleHeading({ level: 1 }).run()} title="Heading 1">H1</button>
       <button className={btn(s.h2)} onClick={() => c().toggleHeading({ level: 2 }).run()} title="Heading 2">H2</button>
       <button className={btn(s.h3)} onClick={() => c().toggleHeading({ level: 3 }).run()} title="Heading 3">H3</button>
@@ -58,10 +56,10 @@ export function Toolbar({ editor, onFiles }: Props) {
       <button className={`${btn(s.code)} font-mono`} onClick={() => c().toggleCode().run()} title="Inline code">{"`c`"}</button>
       <button className={btn(s.link)} onClick={setLink} title="Link">Link</button>
       {sep}
-      <button className={btn(s.bullet)} onClick={() => c().toggleBulletList().run()} title="Bullet list">• List</button>
-      <button className={btn(s.ordered)} onClick={() => c().toggleOrderedList().run()} title="Numbered list">1. List</button>
-      <button className={btn(s.task)} onClick={() => c().toggleTaskList().run()} title="Checklist">☑ Tasks</button>
-      <button className={btn(s.quote)} onClick={() => c().toggleBlockquote().run()} title="Quote">❝</button>
+      <button className={btn(s.bullet)} onClick={() => c().toggleBulletList().run()} title="Bullet list">List</button>
+      <button className={btn(s.ordered)} onClick={() => c().toggleOrderedList().run()} title="Numbered list">Numbered</button>
+      <button className={btn(s.task)} onClick={() => c().toggleTaskList().run()} title="Checklist">Checklist</button>
+      <button className={btn(s.quote)} onClick={() => c().toggleBlockquote().run()} title="Callout / tip">Tip</button>
       {sep}
       <button className={`${btn(s.codeBlock)} font-mono`} onClick={() => c().toggleCodeBlock().run()} title="Code block">{"</>"}</button>
       <button
@@ -77,7 +75,7 @@ export function Toolbar({ editor, onFiles }: Props) {
             .run()
         }
       >
-        ◇ Diagram
+        Diagram
       </button>
       <button
         className={btn(s.table)}
@@ -86,7 +84,7 @@ export function Toolbar({ editor, onFiles }: Props) {
           s.table ? c().deleteTable().run() : c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
         }
       >
-        {s.table ? "✕ Table" : "▦ Table"}
+        {s.table ? "Remove table" : "Table"}
       </button>
       {s.table && (
         <>
@@ -96,8 +94,8 @@ export function Toolbar({ editor, onFiles }: Props) {
       )}
       <button className={btn(false)} onClick={() => c().setHorizontalRule().run()} title="Divider">―</button>
       {sep}
-      <button className={btn(false)} onClick={() => imageInput.current?.click()} title="Upload image">🖼 Image</button>
-      <button className={btn(false)} onClick={() => fileInput.current?.click()} title="Attach file">📎 File</button>
+      <button className={btn(false)} onClick={() => imageInput.current?.click()} title="Upload image">Image</button>
+      <button className={btn(false)} onClick={() => fileInput.current?.click()} title="Attach file">File</button>
       <input
         ref={imageInput}
         type="file"

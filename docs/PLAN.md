@@ -198,3 +198,19 @@ supabase/migrations/0001_init.sql
 | File limit | 25 MB per file |
 | Organisation | Tags (no folders) |
 | Out-of-scope items | Stay out of scope for v1 |
+
+## 11. v2: design refresh and paste-to-structure
+
+Built from the "Notes Vault" design canvas (reading view + New note screen).
+
+- Look: warm paper palette, teal accent, Newsreader (reading), Inter (UI), JetBrains Mono (code); fonts are bundled.
+- Sidebar: New note, search, collections with nested notes, Unsorted, pinned, tag filters.
+- New note screen: paste box on the left, "What the vault found" on the right. `lib/structure.ts` splits the paste
+  at blank lines and fences, labels each block (text, heading, list, table, code + language, Mermaid, log, link,
+  image, file, plain) with a reason, lets the user change the type, then builds the note. Nothing is dropped:
+  unknown content stays as plain text, and the original paste can be stored (`notes.raw_paste`).
+- Note page: reading view by default (breadcrumb, Edit, Export, More: pin / original paste / delete; title, date,
+  reading time, tags; outline of headings), Edit switches to the rich editor in place.
+- Schema: `0003_collections.sql` adds `collections` (RLS, owner only), `notes.collection_id` (own collections
+  only), `notes.raw_paste`, and a stored `notes.preview` for fast lists.
+- Not included: AI rewriting of pasted text (the design's cleaned-up sentence); dark mode (the design is light only).

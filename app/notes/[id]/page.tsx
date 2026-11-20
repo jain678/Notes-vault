@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { NoteEditor } from "@/components/notes/NoteEditor";
+import { NoteView } from "@/components/notes/NoteView";
+import { NOTE_COLUMNS, type Note } from "@/lib/notes";
 import { createClient } from "@/lib/supabase/server";
-import type { Note } from "@/lib/notes";
 
 export default async function NotePage({ params }: PageProps<"/notes/[id]">) {
   const { id } = await params;
@@ -9,12 +9,8 @@ export default async function NotePage({ params }: PageProps<"/notes/[id]">) {
 
   const supabase = await createClient();
   // RLS guarantees this only ever returns the signed-in user's own note.
-  const { data } = await supabase
-    .from("notes")
-    .select("id,user_id,title,content,content_text,tags,pinned,created_at,updated_at")
-    .eq("id", id)
-    .maybeSingle();
+  const { data } = await supabase.from("notes").select(NOTE_COLUMNS).eq("id", id).maybeSingle();
   if (!data) notFound();
 
-  return <NoteEditor key={id} note={data as Note} />;
+  return <NoteView key={id} note={data as unknown as Note} />;
 }
